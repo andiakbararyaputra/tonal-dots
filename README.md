@@ -127,6 +127,7 @@ tonal-dots/
 - **Without UWSM**: set `launchPrefix = ""` in `binds.lua` and drop the `uwsm app --` prefix in `autostart.lua`.
 - **Generated theme files**: `hypr/noctalia.lua`, `kitty/themes/noctalia.conf`, `alacritty/themes/noctalia.toml` and `btop/themes/noctalia.theme` are snapshots. Noctalia rewrites them when the wallpaper changes, so they show up as changes in git.
 - **Suspend on idle**: the idle action in `noctalia/config.toml` reads `/sys/class/power_supply/ADP1/online`. Change `ADP1` to match your laptop, or remove the action.
+- **Lock screen / desktop widgets**: `[lockscreen_widgets]` and `[desktop_widgets]` in `noctalia/config.toml` are laid out for `eDP-1` (1280x720) and `HDMI-A-2` (3840x2160). Change `output`, `cx`/`cy` and box sizes to match your monitors. A `[lockscreen_widgets]` block in `~/.local/state/noctalia/settings.toml` (written by the Settings editor) overrides this one.
 
 ## Credits
 
