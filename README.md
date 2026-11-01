@@ -7,7 +7,7 @@ Hyprland 0.57 (Lua config) + [Noctalia](https://github.com/noctalia-dev/noctalia
 ## Features
 
 - **Modular Lua Hyprland config**: one file per concern under `config/hypr/config/`, all loaded from `hyprland.lua`.
-- **Auto picture-in-picture**: when you leave a workspace with a playing video, it shrinks into a pinned PiP window that follows you, and goes back when you return. Firefox uses its own PiP. Toggle with <kbd>SUPER</kbd> + <kbd>SHIFT</kbd> + <kbd>P</kbd>.
+- **Auto picture-in-picture**: when you leave a workspace with a playing video, it shrinks into a pinned PiP window that follows you, and goes back when you return. Firefox uses its own PiP. The PiP is large on empty workspaces and small and centred when other windows are open, adjusting as you switch workspaces or open and close windows. Toggle with <kbd>SUPER</kbd> + <kbd>SHIFT</kbd> + <kbd>P</kbd>.
 - **Glass Noctalia bar and panels**: capsule bar, rounded screen corners, launcher with pinned apps, satty for screenshots/clipboard images.
 - **Desk Clock plugin** (`andiakbar/deskclock`): a desktop clock that shows icons of apps with unread notifications. The bar's left side switches between clock and stats depending on whether a window covers the desktop clock.
 - **Wallpaper-driven colors**: Noctalia generates matching themes for Hyprland, kitty, alacritty and btop.

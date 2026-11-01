@@ -1,11 +1,13 @@
 -- Auto picture-in-picture: when leaving a workspace with a playing video, show it as a pinned PiP
 -- so it follows you; it is restored when you return to its workspace (or press SUPER + SHIFT + P).
 -- Firefox (not in fullscreen) uses its own PiP; everything else is shrunk and pinned.
+-- On a workspace with no other windows the PiP is large (IDLE_BOX), otherwise small and centred.
 -- Playing state comes from scripts/mpris-playing.sh (started in autostart.lua).
 
 local PLAYING_FILE     = (os.getenv("XDG_RUNTIME_DIR") or "/tmp") .. "/hypr-pip-playing"
 local STATE_FILE       = (os.getenv("XDG_RUNTIME_DIR") or "/tmp") .. "/hypr-pip-state"
 local PIP_HEIGHT       = 0.25 -- fraction of monitor height
+local IDLE_BOX         = { x = 0.126, y = 0.103, w = 0.768, h = 0.769 } -- fractions of the monitor
 local SKIP_WS          = { gaming = true }
 local NATIVE_PIP_CLASS = "^firefox" -- Ctrl+Shift+] opens the browser's own PiP
 local NATIVE_PIP_WAIT  = 2000 -- ms to wait for that PiP window before falling back
@@ -15,6 +17,7 @@ local inhibit_cache = {} -- window address -> inhibiting_idle while it was last 
 local saved         = nil -- state of the current PiP (kind = "shrink" | "native")
 local native_timer  = nil
 local fixup_timer   = nil
+local relayout_timer = nil
 
 local function playing_pids()
     local pids = {}
@@ -70,8 +73,12 @@ local function find_video(ws_id, mon)
     return best, best_kind
 end
 
-local function pip_box(mon, aspect, min_w)
+local function pip_box(mon, aspect, min_w, idle)
     local mw, mh = mon.width / mon.scale, mon.height / mon.scale
+    if idle then
+        return math.floor(mw * IDLE_BOX.w), math.floor(mh * IDLE_BOX.h),
+            math.floor(mon.x + mw * IDLE_BOX.x), math.floor(mon.y + mh * IDLE_BOX.y)
+    end
     local res    = mon.reserved or {}
     local ph     = math.floor(math.max(150, mh * PIP_HEIGHT))
     local pw     = math.floor(math.min(mw * 0.4, ph * aspect))
@@ -85,11 +92,34 @@ local function pip_box(mon, aspect, min_w)
         math.floor(mon.y + top + (uh - ph) / 2)
 end
 
+-- Pinned windows (the PiP itself) don't count
+local function is_idle(mon)
+    local ws = hl.get_active_workspace(mon)
+    if not ws then return false end
+    for _, w in ipairs(hl.get_windows()) do
+        if w.workspace and w.workspace.id == ws.id and w.mapped and not w.hidden and not w.pinned then return false end
+    end
+    return true
+end
+
 local function place_pip(win, mon, aspect, min_w)
-    local pw, ph, x, y = pip_box(mon, aspect, min_w)
+    local idle = is_idle(mon)
+    local pw, ph, x, y = pip_box(mon, aspect, min_w, idle)
     hl.dispatch(hl.dsp.window.resize({ x = pw, y = ph, window = win }))
     hl.dispatch(hl.dsp.window.move({ x = x, y = y, relative = false, window = win }))
-    return pw
+    if not saved then return end
+    saved.idle = idle
+
+    -- Apps with a minimum width (Firefox: 500) end up wider once they ack; refit keeping aspect
+    local s, addr = saved, win.address
+    fixup_timer = hl.timer(function()
+        local cur = saved == s and hl.get_window("address:" .. addr)
+        if not cur or cur.size.x <= pw then return end
+        s.min_w = cur.size.x
+        local npw, nph, nx, ny = pip_box(mon, aspect, s.min_w, idle)
+        hl.dispatch(hl.dsp.window.resize({ x = npw, y = nph, window = cur }))
+        hl.dispatch(hl.dsp.window.move({ x = nx, y = ny, relative = false, window = cur }))
+    end, { timeout = 300, type = "oneshot" })
 end
 
 local function make_shrink(w, mon)
@@ -112,19 +142,10 @@ local function make_shrink(w, mon)
     if not w.floating then
         hl.dispatch(hl.dsp.window.float({ action = "on", window = w }))
     end
-    local pw = place_pip(w, mon, saved.aspect)
+    place_pip(w, mon, saved.aspect)
     hl.dispatch(hl.dsp.window.pin({ action = "on", window = w }))
     -- float/pin reset the client fullscreen state, so re-apply it
     if saved.fsc ~= 0 then hl.dispatch(fake_fs) end
-
-    -- Apps with a minimum width (Firefox: 500) end up wider once they ack; refit keeping aspect
-    local s = saved
-    fixup_timer = hl.timer(function()
-        local cur = saved == s and hl.get_window("address:" .. s.address)
-        if not cur or cur.size.x <= pw then return end
-        s.min_w = cur.size.x
-        place_pip(cur, mon, s.aspect, s.min_w)
-    end, { timeout = 300, type = "oneshot" })
 end
 
 local function make_native(w, mon, hinted)
@@ -174,6 +195,24 @@ end
 
 local function ws_selector(s)
     return s.ws_id > 0 and s.ws_id or ("name:" .. s.ws_name)
+end
+
+local function pip_window()
+    if not saved then return nil end
+    local addr = saved.kind == "native" and saved.pip_address or (saved.kind == "shrink" and saved.address)
+    return addr and hl.get_window("address:" .. addr)
+end
+
+-- Only re-place when the workspace flips between empty and busy, so a dragged PiP stays put otherwise
+local function relayout()
+    local win = pip_window()
+    if not win or not win.pinned or not win.monitor or is_idle(win.monitor) == saved.idle then return end
+    place_pip(win, win.monitor, saved.aspect or (win.size.x / math.max(1, win.size.y)), saved.min_w)
+end
+
+-- Window events fire before the window is fully placed, so check a moment later
+local function relayout_soon()
+    if saved then relayout_timer = hl.timer(relayout, { timeout = 150, type = "oneshot" }) end
 end
 
 local function restore()
@@ -250,7 +289,7 @@ local function load_state()
         local val = v
         if NUM_KEYS[name] then
             val = tonumber(v)
-        elseif name == "floating" then
+        elseif name == "floating" or name == "idle" then
             val = v == "true"
         end
         if parent then
@@ -290,7 +329,7 @@ hl.on("workspace.active", function(ws)
     if prev_id == nil or prev_id == ws.id then return end
 
     if saved then
-        if saved.ws_id == ws.id then restore() end
+        if saved.ws_id == ws.id then restore() else relayout() end
         return
     end
 
@@ -313,7 +352,11 @@ hl.on("window.close", function(w)
     if not w then return end
     inhibit_cache[w.address] = nil
     if saved and (w.address == saved.address or w.address == saved.pip_address) then saved = nil end
+    relayout_soon()
 end)
+
+hl.on("window.open", relayout_soon)
+hl.on("window.move_to_workspace", relayout_soon)
 
 local cache_timer = hl.timer(function()
     for _, w in ipairs(hl.get_windows()) do
