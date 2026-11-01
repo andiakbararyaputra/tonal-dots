@@ -11,6 +11,8 @@ local IDLE_SIZE        = { w = 0.768, h = 0.769 } -- fractions of the monitor
 local SKIP_WS          = { gaming = true }
 local NATIVE_PIP_CLASS = "^firefox" -- Ctrl+Shift+] opens the browser's own PiP
 local NATIVE_PIP_WAIT  = 2000 -- ms to wait for that PiP window before falling back
+local POLL_PLAYING     = 1000 -- ms between idle-inhibit snapshots while MPRIS media plays
+local POLL_IDLE        = 5000 -- otherwise, to save battery
 
 local prev_ws       = {} -- monitor id -> last active workspace id
 local inhibit_cache = {} -- window address -> inhibiting_idle while it was last on screen
@@ -359,16 +361,22 @@ end)
 hl.on("window.open", relayout_soon)
 hl.on("window.move_to_workspace", relayout_soon)
 
-local cache_timer = hl.timer(function()
+-- timer is kept in the module table so require() keeps it referenced
+local M = { close_active = close_active }
+
+-- set_timeout only affects the next tick, so re-arm a oneshot with the wanted delay
+local function refresh_cache()
     for _, w in ipairs(hl.get_windows()) do
         if w.workspace and w.workspace.visible then inhibit_cache[w.address] = w.inhibiting_idle end
     end
-end, { timeout = 1000, type = "repeat" })
+    local delay = next(playing_pids()) and POLL_PLAYING or POLL_IDLE
+    M.timer = hl.timer(refresh_cache, { timeout = delay, type = "oneshot" })
+end
+M.timer = hl.timer(refresh_cache, { timeout = POLL_PLAYING, type = "oneshot" })
 
 hl.bind("SUPER + SHIFT + P", function()
     if not saved then return end
     hl.dispatch(hl.dsp.focus({ workspace = ws_selector(saved) }))
 end)
 
--- timer is returned so require() keeps it referenced
-return { timer = cache_timer, close_active = close_active }
+return M
