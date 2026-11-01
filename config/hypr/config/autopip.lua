@@ -1,13 +1,13 @@
 -- Auto picture-in-picture: when leaving a workspace with a playing video, show it as a pinned PiP
 -- so it follows you; it is restored when you return to its workspace (or press SUPER + SHIFT + P).
 -- Firefox (not in fullscreen) uses its own PiP; everything else is shrunk and pinned.
--- On a workspace with no other windows the PiP is large (IDLE_BOX), otherwise small and centred.
+-- On a workspace with no other windows the PiP is large (IDLE_SIZE), otherwise small; both centred.
 -- Playing state comes from scripts/mpris-playing.sh (started in autostart.lua).
 
 local PLAYING_FILE     = (os.getenv("XDG_RUNTIME_DIR") or "/tmp") .. "/hypr-pip-playing"
 local STATE_FILE       = (os.getenv("XDG_RUNTIME_DIR") or "/tmp") .. "/hypr-pip-state"
 local PIP_HEIGHT       = 0.25 -- fraction of monitor height
-local IDLE_BOX         = { x = 0.126, y = 0.103, w = 0.768, h = 0.769 } -- fractions of the monitor
+local IDLE_SIZE        = { w = 0.768, h = 0.769 } -- fractions of the monitor
 local SKIP_WS          = { gaming = true }
 local NATIVE_PIP_CLASS = "^firefox" -- Ctrl+Shift+] opens the browser's own PiP
 local NATIVE_PIP_WAIT  = 2000 -- ms to wait for that PiP window before falling back
@@ -75,13 +75,14 @@ end
 
 local function pip_box(mon, aspect, min_w, idle)
     local mw, mh = mon.width / mon.scale, mon.height / mon.scale
-    if idle then
-        return math.floor(mw * IDLE_BOX.w), math.floor(mh * IDLE_BOX.h),
-            math.floor(mon.x + mw * IDLE_BOX.x), math.floor(mon.y + mh * IDLE_BOX.y)
-    end
     local res    = mon.reserved or {}
-    local ph     = math.floor(math.max(150, mh * PIP_HEIGHT))
-    local pw     = math.floor(math.min(mw * 0.4, ph * aspect))
+    local pw, ph
+    if idle then
+        pw, ph = math.floor(mw * IDLE_SIZE.w), math.floor(mh * IDLE_SIZE.h)
+    else
+        ph = math.floor(math.max(150, mh * PIP_HEIGHT))
+        pw = math.floor(math.min(mw * 0.4, ph * aspect))
+    end
     if min_w and min_w > pw then
         pw, ph = min_w, math.floor(min_w / aspect)
     end
