@@ -1,0 +1,252 @@
+[accessibility]
+ui_scale = 1.20
+
+[bar.default]
+background_opacity = 0.45
+capsule = true
+capsule_border = "outline_variant"
+capsule_border_width = 1.0
+capsule_fill = "surface_container"
+capsule_opacity = 0.55
+center = [ "workspaces" ]
+compositor_blur = true
+concave_edge_corners = false
+end = [ "media", "tray", "group:g2", "session" ]
+margin_edge = 6
+margin_ends = 8
+radius_bottom_left = 14
+radius_bottom_right = 14
+radius_top_left = 14
+radius_top_right = 14
+scale = 1.10
+shadow = true
+start = [ "deskclock_primary", "deskclock_secondary" ]
+thickness = 35
+
+    [[bar.default.capsule_group]]
+    border = "outline_variant"
+    fill = "surface_container"
+    id = "g2"
+    members = [ "notifications", "network", "battery" ]
+    opacity = 0.55
+    padding = 8.0
+    widget_spacing = 10
+
+[shell]
+clipboard_image_action_command = "satty -f -"
+corner_radius_scale = 1.3
+font_family = "Adwaita Sans"
+launch_apps_as_systemd_services = true
+polkit_agent = true
+settings_show_advanced = true
+
+    [shell.greeter_sync]
+    auto_sync = true
+
+    [shell.launcher]
+    categories = true
+    category_icons_only = true
+    compact = true
+    layout = "simple"
+    pinned = [ "firefox", "code-oss", "hayase", "google-chrome" ]
+    show_app_origin_indicator = false
+
+    [shell.panel]
+    list_item_background = true
+    open_near_click_control_center = false
+    session_placement = "floating"
+    session_position = "center"
+    transparency_mode = "glass"
+
+    [shell.screenshot]
+    copy_to_clipboard = false
+    pipe_command = "satty -f -"
+    pipe_to_command = true
+    save_to_file = false
+
+    [shell.screen_corners]
+    enabled = true
+    size = 14
+
+    [[shell.session.actions]]
+    action = "lock"
+    countdown_seconds = 0.0
+    enabled = true
+    shortcut = "1"
+    variant = "default"
+
+    [[shell.session.actions]]
+    action = "logout"
+    countdown_seconds = 0.0
+    enabled = true
+    shortcut = "2"
+    variant = "default"
+
+    [[shell.session.actions]]
+    action = "lock_and_suspend"
+    countdown_seconds = 3.0
+    enabled = true
+    shortcut = "3"
+    variant = "default"
+
+    [[shell.session.actions]]
+    action = "reboot"
+    countdown_seconds = 3.0
+    enabled = true
+    shortcut = "4"
+    variant = "default"
+
+    [[shell.session.actions]]
+    action = "shutdown"
+    countdown_seconds = 3.0
+    enabled = true
+    shortcut = "5"
+    variant = "destructive"
+
+[lockscreen]
+blurred_desktop = true
+
+[idle]
+behavior_order = [ "lock", "screen-off", "suspend-on-battery" ]
+pre_action_fade_seconds = 2.0
+
+    [idle.behavior.lock]
+    action = "lock"
+    enabled = true
+    timeout = 300
+
+    [idle.behavior.screen-off]
+    action = "screen_off"
+    enabled = true
+    timeout = 360
+
+    # Noctalia has no AC/battery condition, so check the adapter here
+    [idle.behavior.suspend-on-battery]
+    action = "command"
+    command = "[ \"$(cat /sys/class/power_supply/ADP1/online)\" = 0 ] && systemctl suspend"
+    enabled = true
+    timeout = 900
+
+[hooks]
+battery_percentage_changed = "~/.config/noctalia/hooks/battery-threshold.sh"
+
+[desktop_widgets]
+enabled = true
+widget_order = [ "deskclock", "audio_wave_edp", "audio_wave_hdmi" ]
+
+    [desktop_widgets.widget.audio_wave_edp]
+    box_height = 96.0
+    box_width = 1280.0
+    cx = 640.0
+    cy = 672.0
+    output = "eDP-1"
+    rotation = 0.0
+    type = "audio_visualizer"
+
+        # Hex with alpha for transparency; mirrors the current primary/secondary palette
+        [desktop_widgets.widget.audio_wave_edp.settings]
+        background = false
+        centered = false
+        color_1 = "#a0cafd59"
+        color_2 = "#bbc7db59"
+        mirrored = true
+        show_wave = false
+        show_when_idle = true
+
+    [desktop_widgets.widget.audio_wave_hdmi]
+    box_height = 240.0
+    box_width = 3840.0
+    cx = 1920.0
+    cy = 2040.0
+    output = "HDMI-A-2"
+    rotation = 0.0
+    type = "audio_visualizer"
+
+        [desktop_widgets.widget.audio_wave_hdmi.settings]
+        background = false
+        centered = false
+        color_1 = "#a0cafd59"
+        color_2 = "#bbc7db59"
+        mirrored = true
+        show_wave = false
+        show_when_idle = true
+
+    [desktop_widgets.widget.deskclock]
+    box_height = 200.0
+    box_width = 460.0
+    cx = 640.0
+    cy = 210.0
+    output = "eDP-1"
+    type = "andiakbar/deskclock:clock"
+
+        [desktop_widgets.widget.deskclock.settings]
+        background = false
+
+[system.monitor]
+gpu_poll_seconds = 2
+
+[theme]
+mode = "dark"
+source = "wallpaper"
+wallpaper_scheme = "m3-tonal-spot"
+
+    [theme.templates]
+    builtin_ids = [ "btop", "gtk3", "gtk4", "kcolorscheme", "kitty", "qt", "alacritty", "hyprland" ]
+
+[widget.clock]
+font_family = "JetBrainsMono Nerd Font Propo"
+font_weight = 600
+format = "{:%a, %d/%m/%y %H:%M}"
+tooltip_format = "{:%A, %d %B %Y}"
+
+[widget.launcher]
+color = "secondary"
+
+[widget.media]
+hide_when_no_media = true
+title_scroll = "on_hover"
+
+[widget.notifications]
+hide_when_no_unread = true
+
+[widget.session]
+color = "error"
+
+[widget.spacer_1]
+type = "spacer"
+
+[widget.temp]
+stat = "cpu_temp"
+type = "sysmon"
+visualization = "none"
+
+[widget.sysmon_2]
+glyph = "cpu-usage"
+stat = "cpu_usage"
+type = "sysmon"
+visualization = "none"
+
+[widget.sysmon_3]
+glyph = "cpu-2"
+stat = "ram_used"
+type = "sysmon"
+visualization = "none"
+
+[widget.volume]
+color = "secondary"
+
+[widget.deskclock_primary]
+type = "andiakbar/deskclock:primary"
+
+[widget.deskclock_secondary]
+type = "andiakbar/deskclock:secondary"
+
+[widget.workspaces]
+active_pill_size = 2.5
+empty_color = "on_surface"
+inactive_pill_size = 1.0
+occupied_color = "on_surface"
+pill_scale = 0.80
+show_icons = true
+show_labels = false
+style = "focus_hint"

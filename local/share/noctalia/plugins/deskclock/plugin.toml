@@ -1,0 +1,30 @@
+id = "andiakbar/deskclock"
+name = "Desk Clock"
+version = "1.0.0"
+plugin_api = 31
+author = "andiakbar"
+license = "MIT"
+icon = "clock"
+description = "Desktop date/clock with unread-notification app icons; swaps the top bar while the clock is uncovered."
+dependencies = ["dbus-monitor", "socat"]
+
+[[desktop_widget]]
+id = "clock"
+entry = "clock.luau"
+
+# Left side of the bar: clock while a window covers the desktop clock, stats otherwise
+[[widget]]
+id = "primary"
+entry = "bar-primary.luau"
+
+[[widget]]
+id = "secondary"
+entry = "bar-secondary.luau"
+
+[[service]]
+id = "notifs"
+entry = "notifs.luau"
+
+[[service]]
+id = "barswap"
+entry = "barswap.luau"
