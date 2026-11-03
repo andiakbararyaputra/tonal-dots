@@ -2,7 +2,8 @@
 -- so it follows you; it is restored when you return to its workspace (or press SUPER + SHIFT + P).
 -- Firefox (not in fullscreen) uses its own PiP; everything else is shrunk and pinned.
 -- On a workspace with no other windows the PiP is large (IDLE_SIZE), otherwise small; both centred.
--- Playing state comes from scripts/mpris-playing.sh (started in autostart.lua).
+-- Playing state comes from scripts/mpris-playing.sh (started in autostart.lua), which calls
+-- M.playing_changed() through hyprctl; nothing polls while no video is on screen.
 
 local PLAYING_FILE     = (os.getenv("XDG_RUNTIME_DIR") or "/tmp") .. "/hypr-pip-playing"
 local STATE_FILE       = (os.getenv("XDG_RUNTIME_DIR") or "/tmp") .. "/hypr-pip-state"
@@ -11,15 +12,19 @@ local IDLE_SIZE        = { w = 0.768, h = 0.769 } -- fractions of the monitor
 local SKIP_WS          = { gaming = true }
 local NATIVE_PIP_CLASS = "^firefox" -- Ctrl+Shift+] opens the browser's own PiP
 local NATIVE_PIP_WAIT  = 2000 -- ms to wait for that PiP window before falling back
-local POLL_PLAYING     = 1000 -- ms between idle-inhibit snapshots while MPRIS media plays
-local POLL_IDLE        = 5000 -- otherwise, to save battery
+-- Apps whose playback is always video (they don't inhibit idle or set a content type)
+local VIDEO_CLASSES    = { "^com%-nuvio%-app%-MainKt$", "^mpv$", "^vlc$" }
+local SAMPLE_DELAY     = 1000 -- ms after a change before snapshotting idle inhibitors
+local SAMPLE_POLL      = 5000 -- ms between snapshots while a playing window is on screen
 
-local prev_ws       = {} -- monitor id -> last active workspace id
-local inhibit_cache = {} -- window address -> inhibiting_idle while it was last on screen
-local saved         = nil -- state of the current PiP (kind = "shrink" | "native")
-local native_timer  = nil
-local fixup_timer   = nil
+local M              = {}
+local prev_ws        = {} -- monitor id -> last active workspace id
+local inhibit_cache  = {} -- window address -> inhibiting_idle while it was last on screen
+local saved          = nil -- state of the current PiP (kind = "shrink" | "native")
+local pending_native = nil -- native PiP we are waiting for
+local fixup_timer    = nil
 local relayout_timer = nil
+local sample_delay   = nil -- delay of the pending snapshot timer (M.timer)
 
 local function playing_pids()
     local pids = {}
@@ -31,6 +36,15 @@ local function playing_pids()
     end
     f:close()
     return pids
+end
+
+local playing = playing_pids()
+
+local function is_video_app(w)
+    for _, pat in ipairs(VIDEO_CLASSES) do
+        if w.class:match(pat) then return true end
+    end
+    return false
 end
 
 local function is_pip_title(title)
@@ -51,11 +65,12 @@ local function pip_kind(w, pids)
     if w.pinned or w.hidden or not w.mapped or w.content_type == "game" or is_pip_title(w.title) then return nil end
 
     if pids[w.pid] then
+        if is_video_app(w) then return "shrink" end
         -- Firefox doesn't expose video playback in a normal window, so let its own PiP decide
         if w.fullscreen_client ~= 2 and w.class:match(NATIVE_PIP_CLASS) then return "native" end
         return video_hint(w) and "shrink" or nil
     end
-    -- Players without MPRIS (e.g. mpv without mpv-mpris) only inhibit idle while playing
+    -- Fallback for players with neither MPRIS nor an audio stream
     return (w.content_type == "video" and inhibiting(w)) and "shrink" or nil
 end
 
@@ -155,45 +170,51 @@ local function make_native(w, mon, hinted)
     local s = { kind = "native", address = w.address, ws_id = w.workspace.id, ws_name = w.workspace.name }
     saved = s
 
-    local existing = {}
-    for _, p in ipairs(hl.get_windows()) do existing[p.address] = true end
+    local n = { s = s, pid = w.pid, mon = mon, existing = {} }
+    for _, p in ipairs(hl.get_windows()) do n.existing[p.address] = true end
     local back_to = hl.get_active_window()
+    n.back_to = back_to and back_to.address
+    if pending_native then pending_native.timer:set_enabled(false) end
+    pending_native = n
 
     hl.dispatch(hl.dsp.send_shortcut({ mods = "CTRL SHIFT", key = "bracketright", window = w }))
 
-    local waited, pid = 0, w.pid
-    if native_timer then native_timer:set_enabled(false) end
-    local timer
-    timer = hl.timer(function()
-        waited = waited + 200
-        local pip
-        for _, p in ipairs(hl.get_windows()) do
-            if p.pid == pid and not existing[p.address] and is_pip_title(p.title) then pip = p end
-        end
-        if pip or waited >= NATIVE_PIP_WAIT then timer:set_enabled(false) end
+    n.timer = hl.timer(function()
+        if pending_native ~= n then return end
+        pending_native = nil
+        if saved ~= s then return end
+        saved = nil
+        local win = hl.get_window("address:" .. s.address)
+        if hinted and win and win.workspace and not win.workspace.visible then make_shrink(win, mon) end
+    end, { timeout = NATIVE_PIP_WAIT, type = "oneshot" })
+end
 
+-- Called on window.open / window.title: the browser's PiP may get its title after mapping
+local function adopt_native(p)
+    local n = pending_native
+    if not n or not p or p.pid ~= n.pid or n.existing[p.address] or not is_pip_title(p.title) then return end
+    pending_native = nil
+    n.timer:set_enabled(false)
+    local s, addr = n.s, p.address
+
+    -- Let window rules settle before placing it
+    fixup_timer = hl.timer(function()
+        local pip = hl.get_window("address:" .. addr)
+        if not pip then return end
         -- Returned to the video before the PiP showed up
         if saved ~= s then
-            if pip then hl.dispatch(hl.dsp.window.close({ window = pip })) end
+            hl.dispatch(hl.dsp.window.close({ window = pip }))
             return
         end
-
-        if pip then
-            s.pip_address = pip.address
-            s.aspect = pip.size.x / math.max(1, pip.size.y)
-            place_pip(pip, pip.monitor or mon, s.aspect)
-            -- The PiP window steals focus; hand it back
-            local back = back_to and hl.get_window("address:" .. back_to.address)
-            if back and back.workspace and back.workspace.visible then
-                hl.dispatch(hl.dsp.focus({ window = back }))
-            end
-        elseif waited >= NATIVE_PIP_WAIT then
-            saved = nil
-            local win = hl.get_window("address:" .. s.address)
-            if hinted and win and win.workspace and not win.workspace.visible then make_shrink(win, mon) end
+        s.pip_address = addr
+        s.aspect = pip.size.x / math.max(1, pip.size.y)
+        place_pip(pip, pip.monitor or n.mon, s.aspect)
+        -- The PiP window steals focus; hand it back
+        local back = n.back_to and hl.get_window("address:" .. n.back_to)
+        if back and back.workspace and back.workspace.visible then
+            hl.dispatch(hl.dsp.focus({ window = back }))
         end
-    end, { timeout = 200, type = "repeat" })
-    native_timer = timer
+    end, { timeout = 150, type = "oneshot" })
 end
 
 local function ws_selector(s)
@@ -324,12 +345,39 @@ if resumed then
     end
 end
 
+-- Snapshot inhibitors of on-screen playing windows; keeps polling only while there are any
+local schedule_sample
+local function sample()
+    M.timer, sample_delay = nil, nil
+    local watching = false
+    for _, w in ipairs(hl.get_windows()) do
+        if w.workspace and w.workspace.visible and (playing[w.pid] or w.content_type == "video") then
+            inhibit_cache[w.address] = w.inhibiting_idle
+            watching = true
+        end
+    end
+    if watching then schedule_sample(SAMPLE_POLL) end
+end
+
+-- An earlier pending snapshot wins; the timer lives in M so require() keeps it referenced
+schedule_sample = function(delay)
+    if M.timer and sample_delay <= delay then return end
+    if M.timer then M.timer:set_enabled(false) end
+    sample_delay = delay
+    M.timer = hl.timer(sample, { timeout = delay, type = "oneshot" })
+end
+
+local function on_change()
+    schedule_sample(SAMPLE_DELAY)
+end
+
 hl.on("workspace.active", function(ws)
     if not ws or ws.special or not ws.monitor then return end
     local mon     = ws.monitor
     local prev_id = prev_ws[mon.id]
     prev_ws[mon.id] = ws.id
     if prev_id == nil or prev_id == ws.id then return end
+    on_change()
 
     if saved then
         if saved.ws_id == ws.id then restore() else relayout() end
@@ -358,21 +406,22 @@ hl.on("window.close", function(w)
     relayout_soon()
 end)
 
-hl.on("window.open", relayout_soon)
 hl.on("window.move_to_workspace", relayout_soon)
 
--- timer is kept in the module table so require() keeps it referenced
-local M = { close_active = close_active }
+hl.on("window.open", function(w)
+    adopt_native(w)
+    relayout_soon()
+    on_change()
+end)
+hl.on("window.title", adopt_native)
+hl.on("window.fullscreen", on_change)
 
--- set_timeout only affects the next tick, so re-arm a oneshot with the wanted delay
-local function refresh_cache()
-    for _, w in ipairs(hl.get_windows()) do
-        if w.workspace and w.workspace.visible then inhibit_cache[w.address] = w.inhibiting_idle end
-    end
-    local delay = next(playing_pids()) and POLL_PLAYING or POLL_IDLE
-    M.timer = hl.timer(refresh_cache, { timeout = delay, type = "oneshot" })
+M.close_active = close_active
+function M.playing_changed()
+    playing = playing_pids()
+    on_change()
 end
-M.timer = hl.timer(refresh_cache, { timeout = POLL_PLAYING, type = "oneshot" })
+on_change()
 
 hl.bind("SUPER + SHIFT + P", function()
     if not saved then return end
