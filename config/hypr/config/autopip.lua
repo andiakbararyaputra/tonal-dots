@@ -162,6 +162,8 @@ local function make_shrink(w, mon)
     end
     place_pip(w, mon, saved.aspect)
     hl.dispatch(hl.dsp.window.pin({ action = "on", window = w }))
+    -- windowrules.lua makes tagged windows opaque without blur/shadow
+    hl.dispatch(hl.dsp.window.tag({ tag = "+autopip", window = w }))
     -- float/pin reset the client fullscreen state, so re-apply it
     if saved.fsc ~= 0 then hl.dispatch(fake_fs) end
 end
@@ -254,6 +256,7 @@ local function restore()
     local w = hl.get_window("address:" .. s.address)
     if not w then return end
 
+    hl.dispatch(hl.dsp.window.tag({ tag = "-autopip", window = w }))
     hl.dispatch(hl.dsp.window.pin({ action = "off", window = w }))
     local home = w.workspace and w.workspace.id == s.ws_id
     if not home then
@@ -396,7 +399,10 @@ hl.on("workspace.active", function(ws)
 end)
 
 hl.on("window.pin", function(w)
-    if saved and saved.kind == "shrink" and w and w.address == saved.address and not w.pinned then saved = nil end
+    if saved and saved.kind == "shrink" and w and w.address == saved.address and not w.pinned then
+        saved = nil
+        hl.dispatch(hl.dsp.window.tag({ tag = "-autopip", window = w }))
+    end
 end)
 
 hl.on("window.close", function(w)

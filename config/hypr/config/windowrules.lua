@@ -10,7 +10,12 @@ hl.window_rule({
     keep_aspect_ratio = true,
     size              = { "max(monitor_w, monitor_h)*0.25", "min(monitor_w, monitor_h)*0.25" },
     pin               = true,
+    opacity           = "1.0 override",
+    no_blur           = true,
+    no_shadow         = true,
 })
+-- Windows shrunk by config/autopip.lua; a translucent floating video re-blurs what's behind it every frame
+hl.window_rule({ match = { tag = "autopip" }, opacity = "1.0 override", no_blur = true, no_shadow = true })
 
 -- Gaming
 local gamingApps = "^(steam_app.*|gamescope)$"
@@ -72,7 +77,8 @@ local terminals = "^(kitty|ghostty|[Kk]onsole|Alacritty|gnome-terminal|xfce[0-9]
 
 hl.window_rule({ match = { class = "^(firefox|zen)$" }, opacity = "1.0 override" })
 hl.window_rule({ match = { class = terminals }, opacity = "1.0 override" }) -- Override opacity in favor of terminal settings for opacity. If your terminal doesn't support transparency, you can remove this rule.
-hl.window_rule({ match = { class = "^(mpv|org.kde.haruna|.*plex.*|org\\.kde\\.gwenview|.*vlc.*)$" }, opacity = "1.0 override" })
+hl.window_rule({ match = { class = "^(mpv|org.kde.haruna|.*plex.*|org\\.kde\\.gwenview|.*vlc.*|com-nuvio-app-MainKt|[Hh]ayase)$" }, opacity = "1.0 override" })
+hl.window_rule({ match = { class = "^(com-nuvio-app-MainKt|[Hh]ayase)$" }, content = "video" })
 
 -- Float Utility Windows
 local floatApps = {
