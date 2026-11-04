@@ -11,6 +11,7 @@ Hyprland 0.57 (Lua config) + [Noctalia](https://github.com/noctalia-dev/noctalia
 - **Glass Noctalia bar and panels**: capsule bar, rounded screen corners, launcher with pinned apps, satty for screenshots/clipboard images.
 - **Desk Clock plugin** (`andiakbar/deskclock`): a desktop clock that shows icons of apps with unread notifications. The bar's left side switches between clock and stats depending on whether a window covers the desktop clock.
 - **Wallpaper-driven colors**: Noctalia generates matching themes for Hyprland, kitty, alacritty and btop.
+- **Glass Dolphin**: translucent Kvantum theme (`KvArcDark#`, noctalia colors) blurred by Hyprland, with a vertical icon-only toolbar on the left.
 - Battery warning hook (20% / 10%), fish + starship prompt, foot/alacritty/kitty terminals.
 
 ## Screenshots
@@ -33,6 +34,7 @@ Built on CachyOS (Arch). Package names are for Arch; adjust for your distro.
 | Utilities | `satty`, `hyprpicker`, `libnotify` (`notify-send`) |
 | Terminal / CLI | `kitty`, `foot`, `alacritty`, `fish`, `starship`, `fzf`, `fd`, `zoxide`, `direnv`, `btop`, `neovim`, `fastfetch` |
 | Fonts | `ttf-jetbrains-mono-nerd`, Adwaita Sans (`adwaita-fonts`) |
+| Qt style | `kvantum` (set for all Qt apps via `QT_STYLE_OVERRIDE` in `uwsm/env`) |
 | Default apps (editable) | `dolphin`, `firefox`, `gnome-text-editor`, `gnome-calculator` |
 
 ## Install
@@ -79,7 +81,10 @@ tonal-dots/
 │   ├── noctalia/          # config.toml + hooks/
 │   ├── kitty/ foot/ alacritty/
 │   ├── fish/ starship.toml
-│   └── btop/ nvim/ fastfetch/
+│   ├── btop/ nvim/ fastfetch/
+│   ├── uwsm/              # session env (Qt style, Wayland backends)
+│   └── Kvantum/           # translucent KvArcDark# theme
+├── local/share/kxmlgui5/dolphin/  # Dolphin toolbar layout
 ├── local/share/noctalia/plugins/deskclock/
 └── assets/screenshots/
 ```
@@ -125,6 +130,7 @@ tonal-dots/
 - **Default apps**: edit `config/hypr/config/variables.lua` (`TERMINAL`, `BROWSER`, ...).
 - **Monitors**: set `MONITOR1..3` in `variables.lua` and the layout in `config/hypr/config/monitors.lua` (`hyprctl monitors` lists names).
 - **Without UWSM**: set `launchPrefix = ""` in `binds.lua` and drop the `uwsm app --` prefix in `autostart.lua`.
+- **Dolphin**: the toolbar defaults to the left only when Dolphin has no saved layout. If it stays on top, right-click it and pick *Orientation → Left*. Change transparency with `reduce_window_opacity` in `Kvantum/KvArcDark#/KvArcDark#.kvconfig`.
 - **Generated theme files**: `hypr/noctalia.lua`, `kitty/themes/noctalia.conf`, `alacritty/themes/noctalia.toml` and `btop/themes/noctalia.theme` are snapshots. Noctalia rewrites them when the wallpaper changes, so they show up as changes in git.
 - **Suspend on idle**: the idle action in `noctalia/config.toml` reads `/sys/class/power_supply/ADP1/online`. Change `ADP1` to match your laptop, or remove the action.
 - **Lock screen / desktop widgets**: `[lockscreen_widgets]` and `[desktop_widgets]` in `noctalia/config.toml` are laid out for `eDP-1` (1280x720) and `HDMI-A-2` (3840x2160). Change `output`, `cx`/`cy` and box sizes to match your monitors. A `[lockscreen_widgets]` block in `~/.local/state/noctalia/settings.toml` (written by the Settings editor) overrides this one.

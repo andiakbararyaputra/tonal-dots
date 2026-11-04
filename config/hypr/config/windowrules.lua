@@ -79,6 +79,8 @@ hl.window_rule({ match = { class = "^(firefox|zen)$" }, opacity = "1.0 override"
 hl.window_rule({ match = { class = terminals }, opacity = "1.0 override" }) -- Override opacity in favor of terminal settings for opacity. If your terminal doesn't support transparency, you can remove this rule.
 hl.window_rule({ match = { class = "^(mpv|org.kde.haruna|.*plex.*|org\\.kde\\.gwenview|.*vlc.*|com-nuvio-app-MainKt|[Hh]ayase)$" }, opacity = "1.0 override" })
 hl.window_rule({ match = { class = "^(com-nuvio-app-MainKt|[Hh]ayase)$" }, content = "video" })
+-- Kvantum already makes Dolphin's background ~80% opaque; keep text solid and only dim when unfocused
+hl.window_rule({ match = { class = "^(org\\.kde\\.dolphin)$" }, opacity = "1.0 override 0.875 override" })
 
 -- Float Utility Windows
 local floatApps = {

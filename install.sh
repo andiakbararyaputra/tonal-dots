@@ -20,6 +20,9 @@ LINKS=(
     "btop|config/btop|$CONFIG_HOME/btop"
     "nvim|config/nvim|$CONFIG_HOME/nvim"
     "fastfetch|config/fastfetch|$CONFIG_HOME/fastfetch"
+    "uwsm|config/uwsm|$CONFIG_HOME/uwsm"
+    "kvantum|config/Kvantum|$CONFIG_HOME/Kvantum"
+    "dolphin|local/share/kxmlgui5/dolphin|$DATA_HOME/kxmlgui5/dolphin"
 )
 
 DRY_RUN=0
